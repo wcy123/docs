@@ -338,7 +338,7 @@ static int modeset_create_fb(int fd, struct modeset_buf *buf)
 	memset(&creq, 0, sizeof(creq));
 	creq.width = buf->width;
 	creq.height = buf->height;
-	creq.bpp = 32;
+	creq.bpp = 24;
 	ret = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
 	if (ret < 0) {
 		fprintf(stderr, "cannot create dumb buffer (%d): %m\n",
@@ -350,7 +350,7 @@ static int modeset_create_fb(int fd, struct modeset_buf *buf)
 	buf->handle = creq.handle;
 
 	/* create framebuffer object for the dumb-buffer */
-	ret = drmModeAddFB(fd, buf->width, buf->height, 24, 32, buf->stride,
+	ret = drmModeAddFB(fd, buf->width, buf->height, 24, 24, buf->stride,
 			   buf->handle, &buf->fb);
 	if (ret) {
 		fprintf(stderr, "cannot create framebuffer (%d): %m\n",
@@ -575,10 +575,10 @@ static void modeset_draw(int fd)
 	}
 
 	/* wait 5s for VBLANK or input events */
-	while (time(&cur) < start + 5) {
+	while (time(&cur) < start + 15) {
 		FD_SET(0, &fds);
 		FD_SET(fd, &fds);
-		v.tv_sec = start + 5 - cur;
+		v.tv_sec = start + 15 - cur;
 
 		ret = select(fd + 1, &fds, NULL, NULL, &v);
 		if (ret < 0) {
@@ -648,23 +648,28 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod)
  * did, too.
  */
 
+struct color_rgb24 {
+	unsigned int value:24;
+} __attribute__((__packed__));
 static void modeset_draw_dev(int fd, struct modeset_dev *dev)
 {
 	struct modeset_buf *buf;
 	unsigned int j, k, off;
 	int ret;
-
+    int r,g,b;
 	dev->r = next_color(&dev->r_up, dev->r, 20);
 	dev->g = next_color(&dev->g_up, dev->g, 10);
 	dev->b = next_color(&dev->b_up, dev->b, 5);
-
+    r = dev->r;
+    g = dev->g;
+    b = dev->b;
 	buf = &dev->bufs[dev->front_buf ^ 1];
 	for (j = 0; j < buf->height; ++j) {
 		for (k = 0; k < buf->width; ++k) {
-			off = buf->stride * j + k * 4;
-			*(uint32_t*)&buf->map[off] =
-				     (dev->r << 16) | (dev->g << 8) | dev->b;
-		}
+			off = buf->stride * j + k * 3;
+                        ((struct color_rgb24 *)&buf->map[off])->value =
+                            (r << 16) | (g << 8) | b;
+                }
 	}
 
 	ret = drmModePageFlip(fd, dev->crtc, buf->fb,

@@ -447,7 +447,7 @@ static int modeset_create_fb(int fd, struct modeset_dev *dev)
 	memset(&creq, 0, sizeof(creq));
 	creq.width = dev->width;
 	creq.height = dev->height;
-	creq.bpp = 32;
+	creq.bpp = 24;
 	ret = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq);
 	if (ret < 0) {
 		fprintf(stderr, "cannot create dumb buffer (%d): %m\n",
@@ -459,7 +459,7 @@ static int modeset_create_fb(int fd, struct modeset_dev *dev)
 	dev->handle = creq.handle;
 
 	/* create framebuffer object for the dumb-buffer */
-	ret = drmModeAddFB(fd, dev->width, dev->height, 24, 32, dev->stride,
+	ret = drmModeAddFB(fd, dev->width, dev->height, 24, 24, dev->stride,
 			   dev->handle, &dev->fb);
 	if (ret) {
 		fprintf(stderr, "cannot create framebuffer (%d): %m\n",
@@ -630,6 +630,10 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod)
  * beyond the scope of this document.
  */
 
+struct color_rgb24 {
+	unsigned int value:24;
+} __attribute__((__packed__));
+
 static void modeset_draw(void)
 {
 	uint8_t r, g, b;
@@ -651,11 +655,11 @@ static void modeset_draw(void)
 		for (iter = modeset_list; iter; iter = iter->next) {
 			for (j = 0; j < iter->height; ++j) {
 				for (k = 0; k < iter->width; ++k) {
-					off = iter->stride * j + k * 4;
-					*(uint32_t*)&iter->map[off] =
-						     (r << 16) | (g << 8) | b;
-				}
-			}
+					off = iter->stride * j + k * 3;
+                                        ((struct color_rgb24 *)&iter->map[off])
+                                            ->value = (r << 16) | (g << 8) | b;
+                                }
+                        }
 		}
 
 		usleep(100000);
