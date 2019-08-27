@@ -29,5 +29,7 @@ void imshow(const cv::Mat & image) {
               << "image.size() " << image.size() << " "             //
               << "fb.size() " << fb.size() << " "                   //
               << std::endl;
-  modeset_update(fd);
+
 }
+
+void imshow_update() { modeset_update(fd); }
